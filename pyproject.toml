@@ -1,0 +1,7 @@
+[project]
+name = "YOLO Dataset Customizer"
+version = "0.1.0"
+description = "Load one or multiple datasets. Reduce, mix or merge into a custom dataset."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []

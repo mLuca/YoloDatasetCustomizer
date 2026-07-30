@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['German Trashbin']
+
+roboflow:
+  workspace: lucas-workspace-jziey
+  project: mulltonnen
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/lucas-workspace-jziey/mulltonnen/dataset/3
