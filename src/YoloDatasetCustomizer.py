@@ -1,6 +1,7 @@
 import yaml
 import glob
 import os
+import re
 
 class YoloDataFile():
     def __init__(self, file_path: str):
@@ -54,6 +55,34 @@ class YoloDataFile():
     def __repr__(self) -> str:
         return f"\nYoloDatasetFile(\n    path: {self.__file_path}\n    training_split_path: {self.__training_split_path}\n    validation_split_path: {self.__validation_split_path}\n    testing_split_path: {self.__testing_split_path}\n    class_names: {self.__class_names}\n)\n"
 
+class LabelFile():
+    def __init__(self, file_path: str):
+        """
+        Args:
+            file_path: Valid path to the data set YAML file
+        Raises:
+            FileNotFoundError: When the lablelfile does not exist
+        """
+        self.class_indeces = set()
+        self.file_path = os.path.abspath(file_path)
+        if not os.path.isfile(self.file_path) or not os.path.exists(self.file_path):
+            raise FileNotFoundError(f"No label file found at: {self.file_path}")
+        
+        self.read_label_file()
+    
+    def read_label_file(self):
+        with open(self.file_path) as f:
+            for i, line in enumerate(f):
+                match = re.match(r"^(\d+) ", line)
+                if not match.group(1):
+                    print(f"WARNING: No class found on line {i} in label file {self.file_path}")
+                else:
+                    self.class_indeces.add(match.group(1))
+
+    def get_class_indices(self) -> set:
+        return self.class_indeces
+
+
 
 class YoloDatasetCustomizer():
     def __init__(self, data_set_paths: [str] ):
@@ -92,5 +121,7 @@ class YoloDatasetCustomizer():
         return found_classes
 
     def create_dataset_for_class_names(self, class_names: set(str)):
+        pass
+
         
     
