@@ -1,9 +1,11 @@
-train: ../train/images
-val: ../valid/images
-test: ../test/images
+train: ./train/images
+val: ./valid/images
+test: ./test/images
 
 nc: 1
-names: ['German Trashbin']
+names:
+  1: "German Trashbin"
+  2: "Person"
 
 roboflow:
   workspace: lucas-workspace-jziey

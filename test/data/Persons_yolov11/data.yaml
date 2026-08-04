@@ -1,6 +1,6 @@
-train: /kaggle/input/human-detection-yolo/Final Dataset(2)/train/images
-val: /kaggle/input/human-detection-yolo/Final Dataset(2)/valid/images
-
+train: ./train/images
+val: ./valid/images
+test: ./test/images
 
 nc: 1
-names: ['Person']
+names: ["Person"]
