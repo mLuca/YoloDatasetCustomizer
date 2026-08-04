@@ -59,13 +59,13 @@ class LabelFile():
     def __init__(self, file_path: str):
         """
         Args:
-            file_path: Valid path to the data set YAML file
+            file_path: Valid path to the label file
         Raises:
             FileNotFoundError: When the lablelfile does not exist
         """
         self.class_indeces = set()
         self.file_path = os.path.abspath(file_path)
-        if not os.path.isfile(self.file_path) or not os.path.exists(self.file_path):
+        if not os.path.exists(self.file_path) or not os.path.isfile(self.file_path):
             raise FileNotFoundError(f"No label file found at: {self.file_path}")
         
         self.read_label_file()
@@ -81,6 +81,31 @@ class LabelFile():
 
     def get_class_indices(self) -> set:
         return self.class_indeces
+    
+    def copy_with_classes(self, class_indeces: set(), dst_path: str) -> bool:
+        common_class_indeces = self.class_indeces & class_indeces
+        if not common_class_indeces:
+            return False
+
+        dst_path = os.path.abspath(dst_path)
+        if os.path.exists(dst_path) and os.path.isdir(dst_path):
+            new_content = []
+            with open(self.file_path) as f:
+                for line in f:
+                    match = re.match(r"^(\d+) ", line)
+                    if not match.group(1):
+                        continue
+                    elif match.group(1) in common_class_indeces:
+                        new_content.append(line)
+            
+            dst_file_path = "/".join(dast_path, os.path.basename(self.file_path))
+            with open(dst_file_path, "w") as f:
+                f.write(new_content)
+        else:
+            raise FileNotFoundError(f"Directory not found: {dst_path}")
+        
+        return True
+
 
 
 
@@ -89,7 +114,9 @@ class YoloDatasetCustomizer():
         self.__found_data_file_paths = set()
         self.__data_sets: list(YoloDataFile) = []
 
-        self.add_data_sets(data_set_paths)        
+        self.add_data_sets(data_set_paths)
+        self.DATA_SUB_DIRS = ["train", "valid", "test"]
+        self.SUPPORTED_IMAGE_FORMATS = ["avif", "bmp", "dng", "heic", "jp2", "jpeg", "jpg", "mpo", "png", "tif", "tiff", "webp"]
 
     def add_data_sets(self, data_set_paths: [str]):
         data_set_paths = list(map(lambda p: os.path.abspath(p), data_set_paths))
@@ -120,8 +147,52 @@ class YoloDatasetCustomizer():
             found_classes.update(ydf.get_class_names())
         return found_classes
 
-    def create_dataset_for_class_names(self, class_names: set(str)):
-        pass
+    def create_new_dataset_for_class_names(self, class_names: set(str), dst_path: str = ".", data_set_name: str = "new_dataset"):
+        new_dataset_path = "/".join(os.abspath(dst_path), data_set_name)
+        new_dataset_path = __get_unique_path(new_dataset_path)
+
+        
+
+        
+        for data_set in self.__data_sets:
+            common_classes = set(data_set.get_class_names) & class_names
+            if not common_classes:
+                continue
+            for sub_dir in self.DATA_SUB_DIRS:
+                root_path = "/".join(os.path.abspath(data_set.get_file_path), sub_dir)
+                labels_path = "/".join(root_path, "labels")
+                images_path = "/".join(root_path, "images")
+
+                if not os.path.exists(labels_dir) or not os.path.exists(images_path):
+                    print(f"WARNING: labels/images do not exist in {root_path}!")
+                    continue
+
+                new_labels_path = "/".join(new_dataset_path, sub_dir, "labels")
+                new_iamges_path = "/".join(new_dataset_path, sub_dir, "images")
+                os.makedirs(new_labels_path)
+                os.makedirs(new_images_path)
+
+                for label_file_path in glob.glob(f"{labels_path}/*.txt"):
+                    label_file = LabelFile(label_file_path)
+                    if label_file.copy_with_classes(common_classes, new_dataset_path):
+
+    
+    def __get_unique_path(self, path:str) -> str:
+        path = os.abspath(path)
+        unique_path = path
+        index = 1
+
+        while True:
+            if os.path.exists(unique_path):
+                unique_path = "".join(path, f"_{index}")
+                index += 1
+            else:
+                return unique_path
+
+
+
+
+
 
         
     
