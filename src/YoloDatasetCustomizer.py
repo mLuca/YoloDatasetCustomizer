@@ -5,6 +5,18 @@ import shutil
 import re
 from typing import Any
 
+def get_unique_path(path:str) -> str:
+    path = os.path.abspath(path)
+    base, ext = os.path.splitext(path)
+    unique_path = path
+    index = 1
+    while True:
+        if os.path.exists(unique_path):
+            unique_path = "".join([base, f"_{index}", ext])
+            index += 1
+        else:
+            return unique_path
+
 
 class YoloDataFileWriter():
     def __init__(self, data_set_dir: str = "./", class_names: list[str] = [], train_split: str = "./train", val_split: str = "./valid", test_split: str = "./test") -> None:
@@ -136,11 +148,11 @@ class LabelFile():
     def get_class_indices(self) -> set[str]:
         return self.__class_indeces
     
-    def copy_by_class_indeces(self, old_to_new_index_match: dict[str,str], dst_path: str, file_name: str = "") -> bool:
+    def copy_by_class_indeces(self, old_to_new_index_match: dict[str,str], dst_path: str, file_name: str = "") -> str|None:
         
         common_class_indeces = self.__class_indeces & set(old_to_new_index_match.keys())
         if not common_class_indeces:
-            return False
+            return None
         
         dst_path = os.path.abspath(dst_path)
         if not os.path.basename(dst_path) == "labels":
@@ -162,14 +174,15 @@ class LabelFile():
                         new_content.append(line)
 
             if file_name == "":
-                file_name = os.path.basename(self.file_path)                
-            dst_file_path = "/".join([dst_path, file_name])
+                file_name = os.path.basename(self.file_path)
+            dst_file_path = get_unique_path("/".join([dst_path, file_name]))
+
             with open(dst_file_path, "w") as f:
                 f.writelines(new_content)
         else:
             raise FileNotFoundError(f"Directory not found: {dst_path}")
         
-        return True
+        return dst_file_path
 
 
 
@@ -181,7 +194,7 @@ class YoloDatasetCustomizer():
 
         self.add_data_sets(data_set_paths)
         self.SPLIT_DIRS = ["train", "valid", "test"]
-        self.SUPPORTED_IMAGE_FORMATS = ["avif", "bmp", "dng", "heic", "jp2", "jpeg", "jpg", "mpo", "png", "tif", "tiff", "webp"]
+        self.SUPPORTED_IMAGE_FORMATS = [".avif", ".bmp", ".dng", ".heic", ".jp2", ".jpeg", ".jpg", ".mpo", ".png", ".tif", ".tiff", ".webp"]
 
     def add_data_sets(self, data_set_paths: list[str]):
         data_set_paths = list(map(lambda p: os.path.abspath(p), data_set_paths))
@@ -218,7 +231,7 @@ class YoloDatasetCustomizer():
             return False
         
         new_dataset_path = "/".join([os.path.abspath(dst_path), data_set_name])
-        new_dataset_path = self.__get_unique_path(new_dataset_path)
+        new_dataset_path = get_unique_path(new_dataset_path)
 
         new_class_indeces = self.__generate_new_class_indeces(class_names)
         print(f"INFO: New class indeces: {new_class_indeces}")
@@ -250,17 +263,17 @@ class YoloDatasetCustomizer():
                 os.makedirs(new_labels_path, exist_ok=True)
                 os.makedirs(new_images_path, exist_ok=True)
 
-                for label_file_path in glob.glob(f"{old_labels_path}/*.txt"):
-                    label_file = LabelFile(label_file_path)
+                for original_label_file_path in glob.glob(f"{old_labels_path}/*.txt"):
+                    label_file = LabelFile(original_label_file_path)
 
-                    
-                    if label_file.copy_by_class_indeces(old_to_new_index_match, new_labels_path):
-                        file_name = os.path.basename(label_file_path)
+                    new_label_file_path = label_file.copy_by_class_indeces(old_to_new_index_match, new_labels_path)
+                    if new_label_file_path:
+                        file_name = os.path.basename(original_label_file_path)
                         file_name_no_ext = file_name[:file_name.rfind('.')]
                         corresponding_image_files = glob.glob(f"{old_images_path}/{file_name_no_ext}.*")
                         for img in corresponding_image_files:
                             try:
-                                ext = img[img.rindex(".") + 1 :]
+                                _ , ext = os.path.splitext(img)
                             except:
                                 print(f"ERROR: Not a valid image, extension missing for: {img}")
                                 return False
@@ -268,8 +281,10 @@ class YoloDatasetCustomizer():
                             if not ignore_img_formats and ext.lower() not in self.SUPPORTED_IMAGE_FORMATS:
                                 print(f"ERROR: Image format not supported by yolo: {img}\nSupported formats are: {self.SUPPORTED_IMAGE_FORMATS}")
                                 return False
-                            
-                            destination = "/".join([new_images_path, os.path.basename(img)])
+
+                            new_image_name,_ = os.path.splitext(os.path.basename(new_label_file_path))
+                            new_image_name = new_image_name + ext
+                            destination = "/".join([new_images_path, new_image_name])
                             if not shutil.copyfile(img, destination):
                                 print(f"ERROR: Image could not be copied:\nSource: {img}\nDestination: {destination}")
                                 return False
@@ -291,17 +306,7 @@ class YoloDatasetCustomizer():
             ret[name] = str(i)
         return ret
     
-    def __get_unique_path(self, path:str) -> str:
-        path = os.path.abspath(path)
-        unique_path = path
-        index = 1
 
-        while True:
-            if os.path.exists(unique_path):
-                unique_path = "".join([path, f"_{index}"])
-                index += 1
-            else:
-                return unique_path
 
 
 
