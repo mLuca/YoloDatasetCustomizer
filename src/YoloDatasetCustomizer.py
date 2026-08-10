@@ -3,35 +3,65 @@ import glob
 import os
 import shutil
 import re
+from typing import Any
 
-class YoloDataFile():
+
+class YoloDataFileWriter():
+    def __init__(self, data_set_dir: str = "./", class_names: list[str] = [], train_split: str = "./train", val_split: str = "./valid", test_split: str = "./test") -> None:
+        self.data_set_dir = os.path.abspath(data_set_dir)
+        self.class_names = class_names
+        self.train_split = train_split
+        self.val_split = val_split
+        self.test_split = test_split
+        self.FILE_NAME = "data.yaml"
+
+    def write(self):
+        classes = {}
+        for i, class_name in enumerate(self.class_names):
+            classes[i] = class_name
+        data = {
+            "train": f"{self.train_split}/images",
+            "val": f"{self.val_split}/images",
+            "test": f"{self.test_split}/images",
+            "names": classes,
+            "nc": len(self.class_names),
+        }
+
+        with open(os.path.join(self.data_set_dir, self.FILE_NAME), "w") as f:
+            yaml.dump(data,f,  default_flow_style=False)
+
+
+
+        
+
+class YoloDataFileReader():
     def __init__(self, file_path: str):
         """
         Args:
             file_path: Valid path to the data set YAML file
         Raises:
-            yaml.YAMLError: When there is an  issue with reading the data-set  YAML file
+            yaml.YAMLError: When there is an  issue with reading the data-set YAML file
             FileNotFoundError: When the data-set YAML file does not exist
             ValueError: When a value in the YAML file is missing or is faulty
             TypeError: When a value comes in an unexpected type
         """
         self.__file_path = os.path.abspath(file_path)
         self.__file_dir = os.path.dirname(self.__file_path)
-        self.__training_split_path = ""
-        self.__validation_split_path = ""
-        self.__testing_split_path = ""
+        self.__training_split_paths: list[str] = []
+        self.__validation_split_paths: list[str] = []
+        self.__testing_split_paths: list[str] = []
         self.__class_names: list[str] = []
 
         self.sync_content()
         
         
     
-    def get_training_split_path(self)-> str:
-        return self.__training_split_path
-    def get_validation_split_path(self)-> str:
-        return self.__validation_split_path
-    def get_testing_split_path(self)-> str:
-        return self.__testing_split_path
+    def get_training_split_paths(self)-> list[str]:
+        return self.__training_split_paths
+    def get_validation_split_paths(self)-> list[str]:
+        return self.__validation_split_paths
+    def get_testing_split_paths(self)-> list[str]:
+        return self.__testing_split_paths
     def get_class_names(self) -> list[str]:
         return self.__class_names
     def get_file_path(self) -> str:
@@ -51,22 +81,33 @@ class YoloDataFile():
     def sync_content(self):
         with open(self.__file_path) as f:
             content = yaml.safe_load(f)
-            self.__training_split_path = content.get("train", "")
-            self.__validation_split_path = content.get("val", "")
-            self.__testing_split_path = content.get("test", "")
-            names = content.get("names")
-            if names:
-                if isinstance(names, dict):
-                    self.__class_names.extend(names.values())
-                elif isinstance(names, list):
-                    self.__class_names.extend(names)
-                else:
-                    raise TypeError(f"Unexpected type for class names in: {self.__file_path}")
+            self.__training_split_paths = self.__read_yaml_entry(content, "train")
+            self.__validation_split_paths = self.__read_yaml_entry(content, "val")
+            self.__testing_split_paths = self.__read_yaml_entry(content, "test")
+            self.__class_names = self.__read_yaml_entry(content, "names")
+            
+
+    def __read_yaml_entry(self, yaml_content: Any, entry_name: str, missing_ok:bool = True) -> list[str]:
+        entry = yaml_content.get(entry_name)
+        ret: list[str] = []
+        if entry:
+            if isinstance(entry, str):
+                ret.append(entry)
+            elif isinstance(entry, dict):
+                ret.extend(entry.values())
+            elif isinstance(entry, list):
+                ret.extend(entry)
             else:
-                raise ValueError(f"No classes are defined in: {self.__file_path}")
+                raise TypeError(f"Unexpected type for {entry_name} in: {self.__file_path}")
+        else:
+            if not missing_ok:
+                raise ValueError(f"{entry_name} not defined in: {self.__file_path}")
+            
+        return ret
+        
     
     def __repr__(self) -> str:
-        return f"\nYoloDatasetFile(\n    path: {self.__file_path}\n    training_split_path: {self.__training_split_path}\n    validation_split_path: {self.__validation_split_path}\n    testing_split_path: {self.__testing_split_path}\n    class_names: {self.__class_names}\n)\n"
+        return f"\nYoloDatasetFile(\n    path: {self.__file_path}\n    training_split_path: {self.__training_split_paths}\n    validation_split_path: {self.__validation_split_paths}\n    testing_split_path: {self.__testing_split_paths}\n    class_names: {self.__class_names}\n)\n"
 
 class LabelFile():
     def __init__(self, file_path: str):
@@ -95,9 +136,9 @@ class LabelFile():
     def get_class_indices(self) -> set[str]:
         return self.__class_indeces
     
-    def copy_by_class_indeces(self, class_indeces: set[str], dst_path: str) -> bool:
-        common_class_indeces = self.__class_indeces & class_indeces
-        print(f"INFO: Requested class indices: {class_indeces}\nAvailabhle indices: {self.__class_indeces}")
+    def copy_by_class_indeces(self, old_to_new_index_match: dict[str,str], dst_path: str, file_name: str = "") -> bool:
+        
+        common_class_indeces = self.__class_indeces & set(old_to_new_index_match.keys())
         if not common_class_indeces:
             return False
         
@@ -113,9 +154,16 @@ class LabelFile():
                     if not match:
                         continue
                     elif match.group(1) in common_class_indeces:
+                        old_index = match.group(1)
+                        new_index = old_to_new_index_match[old_index]
+                        if new_index != old_index:
+                            line = line.replace(old_index, new_index, 1)
+                            print(f"INFO: Replaceing index {old_index} with {new_index}:\n {line}")
                         new_content.append(line)
-            
-            dst_file_path = "/".join([dst_path, os.path.basename(self.file_path)])
+
+            if file_name == "":
+                file_name = os.path.basename(self.file_path)                
+            dst_file_path = "/".join([dst_path, file_name])
             with open(dst_file_path, "w") as f:
                 f.writelines(new_content)
         else:
@@ -128,11 +176,11 @@ class LabelFile():
 
 class YoloDatasetCustomizer():
     def __init__(self, data_set_paths: list[str]):
-        self.__found_data_file_paths = set()
-        self.__data_sets: list[YoloDataFile] = []
+        self.__found_data_file_paths: set[str] = set()
+        self.__data_sets: list[YoloDataFileReader] = []
 
         self.add_data_sets(data_set_paths)
-        self.DATA_SUB_DIRS = ["train", "valid", "test"]
+        self.SPLIT_DIRS = ["train", "valid", "test"]
         self.SUPPORTED_IMAGE_FORMATS = ["avif", "bmp", "dng", "heic", "jp2", "jpeg", "jpg", "mpo", "png", "tif", "tiff", "webp"]
 
     def add_data_sets(self, data_set_paths: list[str]):
@@ -146,50 +194,67 @@ class YoloDatasetCustomizer():
 
         for path in self.__found_data_file_paths:
             try:
-                ydf = YoloDataFile(path)
+                ydfr = YoloDataFileReader(path)
+                self.__data_sets.append(ydfr)
             except (yaml.YAMLError, TypeError, ValueError) as e:
                 print(f"ERROR: Issue loading YAML file at {path}: {e}")
             except FileNotFoundError:
                 print(f"ERROR: Yaml file does not exist at {path}")
-            self.__data_sets.append(ydf)
+            
 
 
-    def get_found_data_file_paths(self) -> list[str]:
+    def get_found_data_file_paths(self) -> set[str]:
         return self.__found_data_file_paths
     
     def get_found_class_names(self) -> set[str]:
-        found_classes = set()
+        found_classes: set[str] = set()
         for ydf in self.__data_sets:
             found_classes.update(ydf.get_class_names())
         return found_classes
 
-    def create_new_dataset_for_class_names(self, class_names: set[str], dst_path: str = ".", data_set_name: str = "new_dataset") -> bool:
+    def create_new_dataset_for_class_names(self, class_names: set[str], dst_path: str = ".", data_set_name: str = "new_dataset", ignore_img_formats: bool = False) -> bool:
+        if len(class_names) == 0:
+            print("Error: No classes selected for new dataset.")
+            return False
+        
         new_dataset_path = "/".join([os.path.abspath(dst_path), data_set_name])
         new_dataset_path = self.__get_unique_path(new_dataset_path)
+
+        new_class_indeces = self.__generate_new_class_indeces(class_names)
+        print(f"INFO: New class indeces: {new_class_indeces}")
 
         for data_set in self.__data_sets:
             print(f"INFO: Processeing {data_set.get_file_dir()}")
             common_class_names = set(data_set.get_class_names()) & class_names
             if not common_class_names:
                 continue
+            else:
+                old_to_new_index_match: dict[str, str] = {}
+                for class_name in common_class_names:
+                    old_index = str(data_set.get_class_names().index(class_name))
+                    new_index = new_class_indeces[class_name]
+                    old_to_new_index_match[old_index] = new_index
+            
 
-            for sub_dir in self.DATA_SUB_DIRS:
-                old_dataset_path = "/".join([os.path.abspath(data_set.get_file_dir()), sub_dir])
+            for split_dir in self.SPLIT_DIRS:
+                old_dataset_path = "/".join([os.path.abspath(data_set.get_file_dir()), split_dir])
                 old_labels_path = "/".join([old_dataset_path, "labels"])
                 old_images_path = "/".join([old_dataset_path, "images"])
 
                 if not os.path.exists(old_labels_path) or not os.path.exists(old_images_path):
-                    print(f"WARNING: labels/images do not exist in {old_dataset_path}!")
+                    print(f"WARNING: labels/images do not exist in {old_dataset_path}! Skipping it.")
                     continue
 
-                new_labels_path = "/".join([new_dataset_path, sub_dir, "labels"])
-                new_images_path = "/".join([new_dataset_path, sub_dir, "images"])
+                new_labels_path = "/".join([new_dataset_path, split_dir, "labels"])
+                new_images_path = "/".join([new_dataset_path, split_dir, "images"])
                 os.makedirs(new_labels_path, exist_ok=True)
                 os.makedirs(new_images_path, exist_ok=True)
 
                 for label_file_path in glob.glob(f"{old_labels_path}/*.txt"):
                     label_file = LabelFile(label_file_path)
-                    if label_file.copy_by_class_indeces(data_set.get_indices_for_names(common_class_names), new_labels_path):
+
+                    
+                    if label_file.copy_by_class_indeces(old_to_new_index_match, new_labels_path):
                         file_name = os.path.basename(label_file_path)
                         file_name_no_ext = file_name[:file_name.rfind('.')]
                         corresponding_image_files = glob.glob(f"{old_images_path}/{file_name_no_ext}.*")
@@ -200,7 +265,7 @@ class YoloDatasetCustomizer():
                                 print(f"ERROR: Not a valid image, extension missing for: {img}")
                                 return False
 
-                            if ext.lower() not in self.SUPPORTED_IMAGE_FORMATS:
+                            if not ignore_img_formats and ext.lower() not in self.SUPPORTED_IMAGE_FORMATS:
                                 print(f"ERROR: Image format not supported by yolo: {img}\nSupported formats are: {self.SUPPORTED_IMAGE_FORMATS}")
                                 return False
                             
@@ -208,10 +273,23 @@ class YoloDatasetCustomizer():
                             if not shutil.copyfile(img, destination):
                                 print(f"ERROR: Image could not be copied:\nSource: {img}\nDestination: {destination}")
                                 return False
+
+        data_file_writer = YoloDataFileWriter(new_dataset_path, list(new_class_indeces.keys()))
+        try:
+            data_file_writer.write()
+        except Exception as e:
+            print(f"ERROR: Could not write new data.yaml to {new_dataset_path}. Generation of {data_set_name} is incomplete!")
+            print(f"Exception was: {e}")
+            return False
+
+
         return True
-                        
 
-
+    def __generate_new_class_indeces(self, class_names:set[str])-> dict[str, str]:
+        ret: dict[str, str] = {}
+        for i, name in enumerate(class_names):
+            ret[name] = str(i)
+        return ret
     
     def __get_unique_path(self, path:str) -> str:
         path = os.path.abspath(path)
