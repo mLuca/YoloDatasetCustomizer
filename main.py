@@ -1,4 +1,4 @@
-from src.YoloDatasetCustomizer import YoloDatasetCustomizer, YoloDataFileWriter
+from src.YoloDatasetCustomizer import YoloDatasetCustomizer
 
 def main():
     dfr_1 = YoloDatasetCustomizer(["./test/data/Dog+Person/data.yaml", "./test/data/Person+Car"])
