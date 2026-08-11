@@ -4,9 +4,10 @@ This tool is meant to help create a custom dataset by picking and choosing class
 
 # Limitations
 
+- The dataset YAML file is expected to be called "data.yaml"
 - The 'path' variable in data.yaml is not processed.
   It is assumed that the dataset root path is the directory where data.yaml resides and all data is present already.
-- The 'scrpit' variable in data.yaml is not processed. Make sure all data is present.
+- The 'script' variable in data.yaml is not processed. Make sure all data is present.
 
 # Usage
 
