@@ -184,6 +184,12 @@ nc: 1
         self.assertIn(os.path.abspath(os.path.join(self.unsupported_image_dataset_dir, "data.yaml")), found_paths)
         self.assertEqual(customizer.get_found_class_names(), {"person", "car"})
 
+    def test_yolo_dataset_customizer_handles_windows_style_paths(self):
+        windows_style_root = self.workspace_root.replace(os.sep, "\\")
+        customizer = YoloDatasetCustomizer([windows_style_root])
+        self.assertIn(os.path.abspath(os.path.join(self.good_dataset_dir, "data.yaml")), customizer.get_found_data_file_paths())
+        self.assertEqual(customizer.get_found_class_names(), {"person", "car"})
+
     def test_yolo_dataset_customizer_creates_filtered_dataset(self):
         customizer = YoloDatasetCustomizer([self.good_dataset_dir])
         success = customizer.create_new_dataset_for_class_names({"car"}, dst_path=self.workspace_root, data_set_name="filtered_car_dataset")

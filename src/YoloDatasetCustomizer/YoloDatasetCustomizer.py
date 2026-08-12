@@ -7,9 +7,14 @@ from typing import Any
 
 _SPLIT_NAMES =["train", "val", "test"]
 
+def _normalize_path(path: str) -> str:
+    """Normalize path separators and return an absolute path for cross-platform use."""
+    return os.path.abspath(str(path).replace("\\", os.sep))
+
+
 def _get_unique_path(path:str) -> str:
     """Return an unused file path by appending a numeric suffix when needed."""
-    path = os.path.abspath(path)
+    path = _normalize_path(path)
     base, ext = os.path.splitext(path)
     unique_path = path
     index = 1
@@ -22,10 +27,10 @@ def _get_unique_path(path:str) -> str:
 
 class YoloDataFileWriter():
     """Create and write a YOLO dataset YAML file for a generated dataset."""
-    def __init__(self, data_set_dir: str = "./", class_names: list[str] = [], train_split: str = "./train", val_split: str = "./valid", test_split: str = "./test") -> None:
+    def __init__(self, data_set_dir: str = "./", class_names: list[str] | None = None, train_split: str = "./train", val_split: str = "./valid", test_split: str = "./test") -> None:
         """Initialize writer with dataset directory, class names, and split locations."""
-        self.data_set_dir = os.path.abspath(data_set_dir)
-        self.class_names = class_names
+        self.data_set_dir = _normalize_path(data_set_dir)
+        self.class_names = class_names if class_names is not None else []
         self.train_split = train_split
         self.val_split = val_split
         self.test_split = test_split
@@ -63,7 +68,7 @@ class YoloDataFileReader():
             ValueError: When a value in the YAML file is missing or is faulty
             TypeError: When a value comes in an unexpected type
         """
-        self.__file_path = os.path.abspath(file_path)
+        self.__file_path = _normalize_path(file_path)
         self.__file_dir = os.path.dirname(self.__file_path)
         self.__splits_paths: dict[str,list[str]] = {}
         self.__class_names: list[str] = []
@@ -139,7 +144,7 @@ class LabelFile():
             FileNotFoundError: When the lablelfile does not exist
         """
         self.__class_indeces: set[str] = set()
-        self.file_path = os.path.abspath(file_path)
+        self.file_path = _normalize_path(file_path)
         if not os.path.exists(self.file_path) or not os.path.isfile(self.file_path):
             raise FileNotFoundError(f"No label file found at: {self.file_path}")
         
@@ -166,9 +171,9 @@ class LabelFile():
         if not common_class_indeces:
             return None
         
-        dst_path = os.path.abspath(dst_path)
+        dst_path = _normalize_path(dst_path)
         if not os.path.basename(dst_path) == "labels":
-            dst_path = os.path.join(dst_path,"labels")
+            dst_path = os.path.join(dst_path, "labels")
 
         if os.path.exists(dst_path) and os.path.isdir(dst_path):
             new_content: list[str] = []
@@ -186,7 +191,7 @@ class LabelFile():
 
             if file_name == "":
                 file_name = os.path.basename(self.file_path)
-            dst_file_path = _get_unique_path("/".join([dst_path, file_name]))
+            dst_file_path = _get_unique_path(os.path.join(dst_path, file_name))
 
             with open(dst_file_path, "w") as f:
                 f.writelines(new_content)
@@ -210,13 +215,13 @@ class YoloDatasetCustomizer():
 
     def add_data_sets(self, data_set_paths: list[str]):
         """Discover YOLO data.yaml files from explicit paths or directory trees."""
-        data_set_paths = list(map(lambda p: os.path.abspath(p), data_set_paths))
+        data_set_paths = [_normalize_path(path) for path in data_set_paths]
 
-        self.__found_data_file_paths.update([path for path in data_set_paths if path.endswith("data.yaml")])
+        self.__found_data_file_paths.update([path for path in data_set_paths if os.path.basename(path).lower() == "data.yaml"])
 
-        paths_without_file_ending = [path for path in data_set_paths if not path.endswith("data.yaml")]
+        paths_without_file_ending = [path for path in data_set_paths if os.path.basename(path).lower() != "data.yaml"]
         for path in paths_without_file_ending:
-            self.__found_data_file_paths.update(glob.glob(path + "/**/data.yaml", recursive=True))
+            self.__found_data_file_paths.update(glob.glob(os.path.join(path, "**", "data.yaml"), recursive=True))
 
         for path in self.__found_data_file_paths:
             try:
@@ -247,7 +252,7 @@ class YoloDatasetCustomizer():
             return False
         
         # Build a unique target folder for the new dataset
-        new_dataset_path = "/".join([os.path.abspath(dst_path), data_set_name])
+        new_dataset_path = os.path.join(_normalize_path(dst_path), data_set_name)
         new_dataset_path = _get_unique_path(new_dataset_path)
 
         # Create a new label index mapping for the selected classes
@@ -271,8 +276,8 @@ class YoloDatasetCustomizer():
             # Copy files from each split (train/val/test) if they contain selected classes
             for split_name in _SPLIT_NAMES:
                 for split_path in data_set.get_split_paths_for_split_name(split_name):
-                    old_images_path = os.path.join(os.path.abspath(data_set.get_file_dir()), split_path)
-                    old_labels_path = self.__generate_label_path_from_img_path(old_images_path)             
+                    old_images_path = os.path.join(_normalize_path(data_set.get_file_dir()), split_path)
+                    old_labels_path = self.__generate_label_path_from_img_path(old_images_path)
 
                     # Skip missing split directories and continue with the next path
                     for path in [old_labels_path, old_images_path]:
@@ -280,8 +285,8 @@ class YoloDatasetCustomizer():
                             print(f"WARNING: Path '{path}' does not exist! Skipping it.")
                             continue
 
-                    new_labels_path = "/".join([new_dataset_path, split_name, "labels"])
-                    new_images_path = "/".join([new_dataset_path, split_name, "images"])
+                    new_labels_path = os.path.join(new_dataset_path, split_name, "labels")
+                    new_images_path = os.path.join(new_dataset_path, split_name, "images")
                     os.makedirs(new_labels_path, exist_ok=True)
                     os.makedirs(new_images_path, exist_ok=True)
 
@@ -311,7 +316,7 @@ class YoloDatasetCustomizer():
                                 # Preserve the label filename and copy the image alongside the new label
                                 new_image_name,_ = os.path.splitext(os.path.basename(new_label_file_path))
                                 new_image_name = new_image_name + ext
-                                destination = "/".join([new_images_path, new_image_name])
+                                destination = os.path.join(new_images_path, new_image_name)
                                 if not shutil.copyfile(img, destination):
                                     print(f"ERROR: Image could not be copied:\nSource: {img}\nDestination: {destination}")
                                     return False

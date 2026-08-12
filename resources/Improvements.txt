@@ -1,0 +1,33 @@
+Priority-ordered improvement list
+
+FIXED 1. Fix brittle path and OS handling
+   Why: The code constructs file paths with string concatenation and assumes Unix-style separators, which can break on Windows and in nested dataset layouts. Since this tool operates on filesystem paths, cross-platform reliability is a core requirement.
+
+2. Remove mutable default arguments
+   Why: class_names: list[str] = [] creates shared state across instances. This is a Python bug pattern that can cause hard-to-trace behavior and incorrect dataset generation when objects are reused.
+
+3. Tighten validation and error handling
+   Why: The project often prints warnings and continues instead of surfacing a clear, actionable failure. For dataset processing, silently skipping broken YAML or missing directories can produce partially valid outputs and make debugging much harder.
+
+4. Fix broken internal state and debug output
+   Why: __repr__ references attributes that do not exist, which signals stale or inconsistent internal state. This is a maintainability problem and a sign that code may be harder to trust during debugging.
+
+5. Standardize class-index typing and conversion
+   Why: Indices are handled as strings in some places and as numeric concepts in others. This inconsistency increases the chance of subtle label remapping bugs that are especially dangerous in object-detection datasets.
+
+6. Refactor the monolithic implementation into smaller modules
+   Why: The main file handles reading YAML, writing YAML, copying labels, scanning directories, and building datasets all at once. Splitting responsibilities would reduce complexity, improve testability, and make future features safer to add.
+
+7. Improve test coverage around edge cases
+   Why: The current tests cover the happy path well, but not enough realistic failure cases such as malformed YAML, duplicate file names, empty split folders, and unexpected dataset layouts. More regression tests would reduce the chance of silent breakage.
+
+8. Clarify and formally validate documented limitations
+   Why: The README already explains assumptions like fixed dataset naming and ignored YAML fields. Those constraints should be treated as explicit API requirements so users understand exactly what is supported and what is not.
+
+9. Clean up naming and spelling inconsistencies
+   Why: Terms like “indeces” and inconsistent variable naming make the code less readable. This is not just cosmetic; it slows down maintenance and increases the chance of mistakes during refactors.
+
+10. Add clearer public API contracts and examples
+   Why: The project is useful, but the usage patterns are not fully anchored in a stable interface. Clearer public contracts and examples would make the package easier to adopt and less fragile over time.
+
+Highest priority overall: fix robustness around paths, defaults, and validation. Those are the issues most likely to lead to real-world failures in a dataset utility.
