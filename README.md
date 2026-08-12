@@ -11,7 +11,11 @@ This tool is meant to help create a custom dataset by picking and choosing class
 
 # Usage
 
-    form YoloDatasetCustomizer import YoloDatasetCustomizer
+If a path ends on "data.yaml" it will take that file into account.
+If a path doesn't end on "data.yaml" it will recursevly look for all data.yaml files from that directory downards.
+e.g.
+
+    from YoloDatasetCustomizer import YoloDatasetCustomizer
 
     ydc = YoloDatasetCustomizer(list_to_existing_datasets)
     ydc.add([one_more_existing_dataset])
@@ -20,3 +24,9 @@ This tool is meant to help create a custom dataset by picking and choosing class
         print("All good")
     else:
         print("Oh no.")
+
+# Run tests
+
+The project uses uv. Install dependencies and run tests with:
+
+    uv run pytest
