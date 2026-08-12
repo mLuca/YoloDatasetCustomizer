@@ -1,14 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "YoloDatasetCustomizer"
 version = "0.1.0"
 description = "Load one or multiple datasets. Reduce, mix or merge into a custom dataset."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
+license = {text = "GPL-3.0-only"}
+authors = [
+    {name = "Luca Mazzon", email = "mazzon.luca@gmail.com"},
+]
+keywords = ["ultralytics", "yolo", "dataset", "machine-learning", "computer-vision", "customization"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+
 dependencies = [
     "pyyaml>=6.0.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/mLuca/YoloDatasetCustomizer"
+Repository = "https://github.com/mLuca/YoloDatasetCustomizer"
+"Issue Tracker" = "https://github.com/mLuca/YoloDatasetCustomizer/issues"
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "twine>=6.2.0",
 ]

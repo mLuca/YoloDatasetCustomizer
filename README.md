@@ -4,15 +4,15 @@ This tool is meant to help create a custom dataset by picking and choosing class
 
 # Limitations
 
-- The dataset YAML file is expected to be called "data.yaml"
+- The dataset YAML file is expected to be called _data.yaml_
 - The 'path' variable in data.yaml is not processed.
-  It is assumed that the dataset root path is the directory where data.yaml resides and all data is present already.
-- The 'script' variable in data.yaml is not processed. Make sure all data is present.
+  It is assumed that the dataset root path is the directory where _data.yaml_ resides and all data is present already.
+- The _script_ variable in _data.yaml_ is not processed. Make sure all data is present.
 
 # Usage
 
-If a path ends on "data.yaml" it will take that file into account.
-If a path doesn't end on "data.yaml" it will recursevly look for all data.yaml files from that directory downards.
+If a path ends on _data.yaml_ it will take that file into account.
+If a path doesn't end on _/data.yaml_ it will recursevly look for all _data.yaml_ files from that directory downards.
 e.g.
 
     from YoloDatasetCustomizer import YoloDatasetCustomizer
@@ -30,3 +30,14 @@ e.g.
 The project uses uv. Install dependencies and run tests with:
 
     uv run pytest
+
+# Build project
+
+Build the package
+
+    uv build
+
+Publish to PyPI (still need twine)
+
+    uv pip install twine
+    uv run twine upload dist/\*
