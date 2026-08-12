@@ -127,7 +127,7 @@ class YoloDataFileReader():
         
     
     def __repr__(self) -> str:
-        return f"\nYoloDatasetFile(\n    path: {self.__file_path}\n    training_split_path: {self.__training_split_paths}\n    validation_split_path: {self.__validation_split_paths}\n    testing_split_path: {self.__testing_split_paths}\n    class_names: {self.__class_names}\n)\n"
+        return f"\nYoloDatasetFile(\n    path: {self.__file_path}\n    split_paths: {self.__splits_paths}\n    class_names: {self.__class_names}\n)\n"
 
 class LabelFile():
     """Read YOLO label files and copy label lines with remapped class indices."""
