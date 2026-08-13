@@ -7,7 +7,7 @@ import yaml
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from YoloDatasetCustomizer.YoloDatasetCustomizer import (
+from YoloDatasetCustomizer import (
     YoloDataFileWriter,
     YoloDataFileReader,
     LabelFile,
