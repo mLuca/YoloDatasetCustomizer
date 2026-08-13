@@ -130,6 +130,15 @@ nc: 1
         self.assertEqual(loaded["names"], {0: "person", 1: "car"})
         self.assertEqual(loaded["nc"], 2)
 
+    def test_yolo_data_file_writer_uses_independent_default_class_names(self):
+        writer_a = YoloDataFileWriter()
+        writer_b = YoloDataFileWriter()
+
+        writer_a.class_names.append("person")
+
+        self.assertEqual(writer_a.class_names, ["person"])
+        self.assertEqual(writer_b.class_names, [])
+
     def test_yolo_data_file_reader_reads_splits_names_and_indices(self):
         reader = YoloDataFileReader(os.path.join(self.good_dataset_dir, "data.yaml"))
         self.assertEqual(reader.get_file_path(), os.path.abspath(os.path.join(self.good_dataset_dir, "data.yaml")))

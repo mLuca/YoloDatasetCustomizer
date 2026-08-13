@@ -3,13 +3,13 @@ Priority-ordered improvement list
 FIXED 1. Fix brittle path and OS handling
    Why: The code constructs file paths with string concatenation and assumes Unix-style separators, which can break on Windows and in nested dataset layouts. Since this tool operates on filesystem paths, cross-platform reliability is a core requirement.
 
-2. Remove mutable default arguments
+FIXED 2. Remove mutable default arguments
    Why: class_names: list[str] = [] creates shared state across instances. This is a Python bug pattern that can cause hard-to-trace behavior and incorrect dataset generation when objects are reused.
 
 3. Tighten validation and error handling
    Why: The project often prints warnings and continues instead of surfacing a clear, actionable failure. For dataset processing, silently skipping broken YAML or missing directories can produce partially valid outputs and make debugging much harder.
 
-4. Fix broken internal state and debug output
+FIXED 4. Fix broken internal state and debug output
    Why: __repr__ references attributes that do not exist, which signals stale or inconsistent internal state. This is a maintainability problem and a sign that code may be harder to trust during debugging.
 
 5. Standardize class-index typing and conversion

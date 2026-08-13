@@ -30,7 +30,7 @@ class YoloDataFileWriter():
     def __init__(self, data_set_dir: str = "./", class_names: list[str] | None = None, train_split: str = "./train", val_split: str = "./valid", test_split: str = "./test") -> None:
         """Initialize writer with dataset directory, class names, and split locations."""
         self.data_set_dir = _normalize_path(data_set_dir)
-        self.class_names = class_names if class_names is not None else []
+        self.class_names = list(class_names) if class_names is not None else []
         self.train_split = train_split
         self.val_split = val_split
         self.test_split = test_split
@@ -342,11 +342,8 @@ class YoloDatasetCustomizer():
 
     def __generate_label_path_from_img_path(self, img_path: str) -> str:
         """Convert an images directory path into its corresponding labels directory path."""
-        img_path = "".join([img_path, "/"])
-        return img_path.replace("/images/", "/labels/")
-    
-
-
+        img_path = "".join([img_path, os.sep])
+        return img_path.replace(f"{os.sep}images{os.sep}", f"{os.sep}labels{os.sep}")
 
 
 
