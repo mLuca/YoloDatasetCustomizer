@@ -15,7 +15,7 @@ FIXED 4. Fix broken internal state and debug output
 5. Standardize class-index typing and conversion
    Why: Indices are handled as strings in some places and as numeric concepts in others. This inconsistency increases the chance of subtle label remapping bugs that are especially dangerous in object-detection datasets.
 
-6. Refactor the monolithic implementation into smaller modules
+FIXED 6. Refactor the monolithic implementation into smaller modules
    Why: The main file handles reading YAML, writing YAML, copying labels, scanning directories, and building datasets all at once. Splitting responsibilities would reduce complexity, improve testability, and make future features safer to add.
 
 7. Improve test coverage around edge cases
