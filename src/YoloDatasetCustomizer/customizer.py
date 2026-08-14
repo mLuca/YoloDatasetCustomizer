@@ -136,10 +136,13 @@ class YoloDatasetCustomizer:
                                 new_image_name, _ = os.path.splitext(os.path.basename(new_label_file_path))
                                 new_image_name = new_image_name + ext
                                 destination = os.path.join(new_images_path, new_image_name)
-                                if not shutil.copyfile(img, destination):
+                                try:
+                                    shutil.copyfile(img, destination)
+                                except OSError as e:
                                     print(
                                         f"ERROR: Image could not be copied:\n"
-                                        f"Source: {img}\nDestination: {destination}"
+                                        f"Source: {img}\nDestination: {destination}\n"
+                                        f"Exception was: {e}"
                                     )
                                     return False
 

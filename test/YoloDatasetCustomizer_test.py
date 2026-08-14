@@ -4,6 +4,7 @@ import tempfile
 import shutil
 import unittest
 import yaml
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
@@ -198,6 +199,14 @@ nc: 1
         customizer = YoloDatasetCustomizer([windows_style_root])
         self.assertIn(os.path.abspath(os.path.join(self.good_dataset_dir, "data.yaml")), customizer.get_found_data_file_paths())
         self.assertEqual(customizer.get_found_class_names(), {"person", "car"})
+
+    def test_create_new_dataset_returns_false_when_image_copy_fails(self):
+        customizer = YoloDatasetCustomizer([self.good_dataset_dir])
+        with patch("YoloDatasetCustomizer.customizer.shutil.copyfile", side_effect=OSError("disk full")):
+            result = customizer.create_new_dataset_for_class_names(
+                {"person", "car"}, dst_path=self.workspace_root, data_set_name="copy_failure_dataset"
+            )
+        self.assertFalse(result)
 
     def test_yolo_dataset_customizer_creates_filtered_dataset(self):
         customizer = YoloDatasetCustomizer([self.good_dataset_dir])

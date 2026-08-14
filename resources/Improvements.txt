@@ -12,7 +12,7 @@ FIXED 3. Fix broken internal state and debug output
 FIXED 4. Refactor the monolithic implementation into smaller modules
    Why: The main file handles reading YAML, writing YAML, copying labels, scanning directories, and building datasets all at once. Splitting responsibilities would reduce complexity, improve testability, and make future features safer to add.
 
-1. Fix broken copy-failure error handling in customizer.py
+FIXED 1. Fix broken copy-failure error handling in customizer.py
    Why: `if not shutil.copyfile(img, destination):` is dead code — copyfile returns a truthy destination path on success and raises on failure, so this branch never triggers and a real copy error (permissions, disk full, locked file) crashes the whole run with an unhandled exception instead of returning False with a clear message.
 
 2. Fix the path-existence skip logic in create_new_dataset_for_class_names
