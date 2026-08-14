@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # "3" resolves to the latest released stable CPython 3.x, so this
+        # tracks new releases automatically without needing manual bumps
+        python-version: ["3.10", "3"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Lint (ruff)
+        run: uv run ruff check src test
+
+      - name: Type-check (mypy)
+        run: uv run mypy
+
+      - name: Test (pytest)
+        run: uv run pytest -q

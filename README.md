@@ -31,6 +31,11 @@ The project uses uv. Install dependencies and run tests with:
 
     uv run pytest
 
+# Lint & type-check
+
+    uv run ruff check src test
+    uv run mypy
+
 # Build project
 
 Build the package
