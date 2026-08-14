@@ -27,10 +27,10 @@ FIXED 1. Fix broken copy-failure error handling in customizer.py
 5. Stop leaking mutable internal state from getters
    Why: get_found_data_file_paths() and get_class_names() return the live internal set/list rather than a copy. Callers can accidentally mutate the object's internal state from outside, breaking encapsulation.
 
-6. Add CI (GitHub Actions) for tests, lint, and type-checking
+FIXED 6. Add CI (GitHub Actions) for tests, lint, and type-checking
    Why: The package classifies itself as "Production/Stable" and is published to PyPI, but nothing runs tests or checks automatically on push/PR. Bugs like items 1 and 2 above would have been easy to catch with basic CI.
 
-7. Add lint/type-check tooling (ruff + mypy) to the dev dependency group
+FIXED 7. Add lint/type-check tooling (ruff + mypy) to the dev dependency group
    Why: There is currently no configured static analysis. Tooling like this would have flagged the always-true/dead `if not shutil.copyfile(...)` check and similar issues automatically.
 
 8. Replace print()-based warnings/errors with the `logging` module
