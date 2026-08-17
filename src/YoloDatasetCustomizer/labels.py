@@ -14,7 +14,7 @@ class LabelFile:
         Raises:
             FileNotFoundError: When the label file does not exist
         """
-        self.__class_indeces: set[str] = set()
+        self.__class_indices: set[str] = set()
         self.file_path = _get_unique_path(file_path) if os.path.isdir(file_path) else os.path.abspath(file_path)
         if not os.path.exists(self.file_path) or not os.path.isfile(self.file_path):
             raise FileNotFoundError(f"No label file found at: {self.file_path}")
@@ -29,16 +29,16 @@ class LabelFile:
                 if not match:
                     print(f"WARNING: No class found on line {i} in label file {self.file_path}")
                 else:
-                    self.__class_indeces.add(match.group(1))
+                    self.__class_indices.add(match.group(1))
 
     def get_class_indices(self) -> set[str]:
         """Return the set of class indices in the loaded label file."""
-        return self.__class_indeces
+        return self.__class_indices
 
-    def copy_by_class_indeces(self, old_to_new_index_match: dict[str, str], dst_path: str, file_name: str = "") -> str | None:
+    def copy_by_class_indices(self, old_to_new_index_match: dict[str, str], dst_path: str, file_name: str = "") -> str | None:
         """Copy the label file to the destination with indices remapped for the new dataset."""
-        common_class_indeces = self.__class_indeces & set(old_to_new_index_match.keys())
-        if not common_class_indeces:
+        common_class_indices = self.__class_indices & set(old_to_new_index_match.keys())
+        if not common_class_indices:
             return None
 
         dst_path = os.path.abspath(dst_path)
@@ -52,7 +52,7 @@ class LabelFile:
                     match = re.match(r"^(\d+) ", line)
                     if not match:
                         continue
-                    elif match.group(1) in common_class_indeces:
+                    elif match.group(1) in common_class_indices:
                         old_index = match.group(1)
                         new_index = old_to_new_index_match[old_index]
                         if new_index != old_index:

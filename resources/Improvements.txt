@@ -18,7 +18,7 @@ FIXED 1. Fix broken copy-failure error handling in customizer.py
 FIXED 2. Fix the path-existence skip logic in create_new_dataset_for_class_names
    Why: `for path in [old_labels_path, old_images_path]: if not os.path.exists(path): ...continue` only continues that 2-item inner loop, not the split-processing loop it's meant to guard. A missing labels/images directory is not actually skipped as intended, so processing silently proceeds against a non-existent path (glob just returns nothing, masking the real problem).
 
-3. Standardize class-index typing and conversion
+FIXED 3. Standardize class-index typing and conversion
    Why: Indices are handled as strings in some places and as numeric concepts in others. This inconsistency increases the chance of subtle label remapping bugs that are especially dangerous in object-detection datasets.
 
 4. Tighten validation and error handling generally
@@ -36,7 +36,7 @@ FIXED 7. Add lint/type-check tooling (ruff + mypy) to the dev dependency group
 8. Replace print()-based warnings/errors with the `logging` module
    Why: A library shouldn't write directly to stdout. Using `logging` lets consumers control verbosity, redirect output, and integrate the tool into larger pipelines.
 
-9. Clean up naming and spelling inconsistencies
+FIXED 9. Clean up naming and spelling inconsistencies
    Why: The misspelling "indeces" is used in some names (copy_by_class_indeces, __generate_new_class_indeces) while the correct "indices" is used elsewhere (get_class_indices, get_indices_for_names) in the same codebase. This is not just cosmetic; it slows down maintenance and increases the chance of mistakes during refactors.
 
 10. Remove or clarify the directory-handling branch in LabelFile.__init__
