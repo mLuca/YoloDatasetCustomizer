@@ -165,7 +165,7 @@ nc: 1
 
         output_labels_dir = os.path.join(self.workspace_root, "copied_labels")
         os.makedirs(os.path.join(output_labels_dir, "labels"), exist_ok=True)
-        copied_path = label_file.copy_by_class_indeces({"1": "0"}, output_labels_dir)
+        copied_path = label_file.copy_by_class_indices({"1": "0"}, output_labels_dir)
         self.assertIsNotNone(copied_path)
         self.assertTrue(os.path.exists(copied_path))
         with open(copied_path, "r", encoding="utf-8") as f:
@@ -174,17 +174,17 @@ nc: 1
         self.assertNotIn("1 0.5 0.6 0.7 0.8", content)
         self.assertNotIn("0.1 0.2 0.3 0.4", content)
 
-    def test_label_file_copy_by_class_indeces_returns_none_when_missing_indices(self):
+    def test_label_file_copy_by_class_indices_returns_none_when_missing_indices(self):
         label_path = os.path.join(self.good_dataset_dir, "train", "labels", "person_car.txt")
         label_file = LabelFile(label_path)
-        self.assertIsNone(label_file.copy_by_class_indeces({"2": "0"}, os.path.join(self.workspace_root, "labels")))
+        self.assertIsNone(label_file.copy_by_class_indices({"2": "0"}, os.path.join(self.workspace_root, "labels")))
 
     def test_label_file_copy_with_missing_destination_directory_raises(self):
         label_path = os.path.join(self.good_dataset_dir, "train", "labels", "person_car.txt")
         label_file = LabelFile(label_path)
         missing_destination = os.path.join(self.workspace_root, "missing", "labels")
         with self.assertRaises(FileNotFoundError):
-            label_file.copy_by_class_indeces({"0": "0"}, missing_destination)
+            label_file.copy_by_class_indices({"0": "0"}, missing_destination)
 
     def test_yolo_dataset_customizer_discovers_all_data_yaml_files(self):
         customizer = YoloDatasetCustomizer([self.workspace_root])

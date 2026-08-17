@@ -83,8 +83,8 @@ class YoloDatasetCustomizer:
         new_dataset_path = os.path.join(_normalize_path(dst_path), data_set_name)
         new_dataset_path = _get_unique_path(new_dataset_path)
 
-        new_class_indeces = self.__generate_new_class_indeces(class_names)
-        print(f"INFO: New class indeces: {new_class_indeces}")
+        new_class_indices = self.__generate_new_class_indices(class_names)
+        print(f"INFO: New class indices: {new_class_indices}")
 
         for data_set in self.__data_sets:
             common_class_names = set(data_set.get_class_names()) & class_names
@@ -94,7 +94,7 @@ class YoloDatasetCustomizer:
             old_to_new_index_match: dict[str, str] = {}
             for class_name in common_class_names:
                 old_index = str(data_set.get_class_names().index(class_name))
-                new_index = new_class_indeces[class_name]
+                new_index = new_class_indices[class_name]
                 old_to_new_index_match[old_index] = new_index
 
             for split_name in _SPLIT_NAMES:
@@ -116,7 +116,7 @@ class YoloDatasetCustomizer:
 
                     for original_label_file_path in glob.glob(os.path.join(old_labels_path, "*.txt")):
                         label_file = LabelFile(original_label_file_path)
-                        new_label_file_path = label_file.copy_by_class_indeces(old_to_new_index_match, new_labels_path)
+                        new_label_file_path = label_file.copy_by_class_indices(old_to_new_index_match, new_labels_path)
                         if new_label_file_path:
                             file_name = os.path.basename(original_label_file_path)
                             file_name_no_ext = file_name[: file_name.rfind(".")]
@@ -148,7 +148,7 @@ class YoloDatasetCustomizer:
                                     )
                                     return False
 
-        data_file_writer = YoloDataFileWriter(new_dataset_path, list(new_class_indeces.keys()))
+        data_file_writer = YoloDataFileWriter(new_dataset_path, list(new_class_indices.keys()))
         try:
             data_file_writer.write()
         except Exception as e:
@@ -158,7 +158,7 @@ class YoloDatasetCustomizer:
 
         return True
 
-    def __generate_new_class_indeces(self, class_names: set[str]) -> dict[str, str]:
+    def __generate_new_class_indices(self, class_names: set[str]) -> dict[str, str]:
         """Generate a fresh label index mapping for the selected class names."""
         ret: dict[str, str] = {}
         for i, name in enumerate(class_names):
