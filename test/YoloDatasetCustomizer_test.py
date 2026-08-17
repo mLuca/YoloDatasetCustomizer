@@ -55,6 +55,29 @@ class TestYoloDatasetCustomizer(unittest.TestCase):
             "0 0.4 0.5 0.6 0.7\n",
         )
 
+        # Dataset whose 'names' entry is a YAML mapping with reordered/non-contiguous
+        # keys, to verify real class indices (not list position) are preserved.
+        cls.reordered_names_dataset_dir = os.path.join(cls.workspace_root, "reordered_names_dataset")
+        os.makedirs(cls.reordered_names_dataset_dir, exist_ok=True)
+        reordered_names_yaml_content = """
+train: train/images
+val: valid/images
+test: test/images
+names:
+  1: car
+  0: person
+nc: 2
+"""
+        cls._write_text_file(
+            os.path.join(cls.reordered_names_dataset_dir, "data.yaml"),
+            reordered_names_yaml_content,
+        )
+        cls._create_dummy_image_file(os.path.join(cls.reordered_names_dataset_dir, "train", "images", "person_car.jpg"))
+        cls._write_text_file(
+            os.path.join(cls.reordered_names_dataset_dir, "train", "labels", "person_car.txt"),
+            "0 0.1 0.2 0.3 0.4\n1 0.5 0.6 0.7 0.8\n",
+        )
+
         # Dataset with invalid YAML entry type for names
         cls.invalid_yaml_dataset_dir = os.path.join(cls.workspace_root, "invalid_yaml_dataset")
         os.makedirs(cls.invalid_yaml_dataset_dir, exist_ok=True)
@@ -74,6 +97,53 @@ nc: 1
         cls._write_text_file(
             os.path.join(cls.invalid_yaml_dataset_dir, "train", "labels", "person_car.txt"),
             "0 0.1 0.2 0.3 0.4\n1 0.5 0.6 0.7 0.8\n",
+        )
+
+        # Dataset whose 'names' entry is a list with a duplicate class name
+        cls.duplicate_list_names_dataset_dir = os.path.join(cls.workspace_root, "duplicate_list_names_dataset")
+        os.makedirs(cls.duplicate_list_names_dataset_dir, exist_ok=True)
+        duplicate_list_names_yaml_content = """
+train: train/images
+val: valid/images
+test: test/images
+names: [person, car, person]
+nc: 3
+"""
+        cls._write_text_file(
+            os.path.join(cls.duplicate_list_names_dataset_dir, "data.yaml"),
+            duplicate_list_names_yaml_content,
+        )
+
+        # Dataset whose 'names' entry is a mapping with a duplicate raw YAML key (0 defined twice)
+        cls.duplicate_yaml_key_dataset_dir = os.path.join(cls.workspace_root, "duplicate_yaml_key_dataset")
+        os.makedirs(cls.duplicate_yaml_key_dataset_dir, exist_ok=True)
+        duplicate_yaml_key_content = """
+train: train/images
+val: valid/images
+test: test/images
+names:
+  0: car
+  0: person
+nc: 2
+"""
+        cls._write_text_file(
+            os.path.join(cls.duplicate_yaml_key_dataset_dir, "data.yaml"),
+            duplicate_yaml_key_content,
+        )
+        cls.duplicate_dict_names_dataset_dir = os.path.join(cls.workspace_root, "duplicate_dict_names_dataset")
+        os.makedirs(cls.duplicate_dict_names_dataset_dir, exist_ok=True)
+        duplicate_dict_names_yaml_content = """
+train: train/images
+val: valid/images
+test: test/images
+names:
+  0: person
+  1: person
+nc: 2
+"""
+        cls._write_text_file(
+            os.path.join(cls.duplicate_dict_names_dataset_dir, "data.yaml"),
+            duplicate_dict_names_yaml_content,
         )
 
         # Dataset with unsupported image format for the customizer
@@ -149,6 +219,43 @@ nc: 1
         self.assertEqual(reader.get_class_names(), ["person", "car"])
         self.assertEqual(reader.get_indices_for_names({"person"}), {"0"})
         self.assertEqual(reader.get_indices_for_names({"unknown"}), set())
+
+    def test_yolo_data_file_reader_preserves_real_indices_for_reordered_names_mapping(self):
+        # names: {1: car, 0: person} must resolve to the real declared indices
+        # (person=0, car=1), not to the mapping's iteration/list position.
+        reader = YoloDataFileReader(os.path.join(self.reordered_names_dataset_dir, "data.yaml"))
+        self.assertEqual(reader.get_class_names(), ["person", "car"])
+        self.assertEqual(reader.get_indices_for_names({"person"}), {"0"})
+        self.assertEqual(reader.get_indices_for_names({"car"}), {"1"})
+
+    def test_yolo_dataset_customizer_remaps_reordered_names_dataset_correctly(self):
+        customizer = YoloDatasetCustomizer([self.reordered_names_dataset_dir])
+        success = customizer.create_new_dataset_for_class_names(
+            {"car"}, dst_path=self.workspace_root, data_set_name="reordered_names_filtered_dataset"
+        )
+        self.assertTrue(success)
+
+        new_label_path = os.path.join(
+            self.workspace_root, "reordered_names_filtered_dataset", "train", "labels", "person_car.txt"
+        )
+        self.assertTrue(os.path.exists(new_label_path))
+        with open(new_label_path, "r", encoding="utf-8") as f:
+            copied_label = f.read()
+        # Only the 'car' line (originally index 1) should remain, remapped to index 0.
+        self.assertIn("0 0.5 0.6 0.7 0.8", copied_label)
+        self.assertNotIn("0.1 0.2 0.3 0.4", copied_label)
+
+    def test_yolo_data_file_reader_raises_yaml_error_for_duplicate_raw_yaml_key(self):
+        with self.assertRaises(yaml.YAMLError):
+            YoloDataFileReader(os.path.join(self.duplicate_yaml_key_dataset_dir, "data.yaml"))
+
+    def test_yolo_data_file_reader_raises_value_error_for_duplicate_names_in_list(self):
+        with self.assertRaises(ValueError):
+            YoloDataFileReader(os.path.join(self.duplicate_list_names_dataset_dir, "data.yaml"))
+
+    def test_yolo_data_file_reader_raises_value_error_for_duplicate_names_in_dict(self):
+        with self.assertRaises(ValueError):
+            YoloDataFileReader(os.path.join(self.duplicate_dict_names_dataset_dir, "data.yaml"))
 
     def test_yolo_data_file_reader_raises_file_not_found(self):
         with self.assertRaises(FileNotFoundError):

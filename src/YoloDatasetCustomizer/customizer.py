@@ -93,7 +93,10 @@ class YoloDatasetCustomizer:
 
             old_to_new_index_match: dict[str, str] = {}
             for class_name in common_class_names:
-                old_index = str(data_set.get_class_names().index(class_name))
+                old_indices = data_set.get_indices_for_names({class_name})
+                if not old_indices:
+                    continue
+                old_index = next(iter(old_indices))
                 new_index = new_class_indices[class_name]
                 old_to_new_index_match[old_index] = new_index
 
