@@ -15,7 +15,7 @@ FIXED 4. Refactor the monolithic implementation into smaller modules
 FIXED 1. Fix broken copy-failure error handling in customizer.py
    Why: `if not shutil.copyfile(img, destination):` is dead code — copyfile returns a truthy destination path on success and raises on failure, so this branch never triggers and a real copy error (permissions, disk full, locked file) crashes the whole run with an unhandled exception instead of returning False with a clear message.
 
-2. Fix the path-existence skip logic in create_new_dataset_for_class_names
+FIXED 2. Fix the path-existence skip logic in create_new_dataset_for_class_names
    Why: `for path in [old_labels_path, old_images_path]: if not os.path.exists(path): ...continue` only continues that 2-item inner loop, not the split-processing loop it's meant to guard. A missing labels/images directory is not actually skipped as intended, so processing silently proceeds against a non-existent path (glob just returns nothing, masking the real problem).
 
 3. Standardize class-index typing and conversion

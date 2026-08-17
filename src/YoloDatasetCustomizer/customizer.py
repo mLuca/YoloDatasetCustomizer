@@ -102,10 +102,12 @@ class YoloDatasetCustomizer:
                     old_images_path = os.path.join(_normalize_path(data_set.get_file_dir()), split_path)
                     old_labels_path = self.__generate_label_path_from_img_path(old_images_path)
 
-                    for path in [old_labels_path, old_images_path]:
-                        if not os.path.exists(path):
-                            print(f"WARNING: Path '{path}' does not exist! Skipping it.")
-                            continue
+                    missing_path = next(
+                        (path for path in (old_labels_path, old_images_path) if not os.path.exists(path)), None
+                    )
+                    if missing_path is not None:
+                        print(f"WARNING: Path '{missing_path}' does not exist! Skipping it.")
+                        continue
 
                     new_labels_path = os.path.join(new_dataset_path, split_name, "labels")
                     new_images_path = os.path.join(new_dataset_path, split_name, "images")
