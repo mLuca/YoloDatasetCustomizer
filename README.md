@@ -38,11 +38,11 @@ The project uses uv. Install dependencies and run tests with:
 
 # Build project
 
-Build the package
+Build the package:
 
     uv build
 
-Publish to PyPI (still need twine)
+Publish to PyPI (still need twine):
 
     uv pip install twine
     uv run twine upload dist/\*
