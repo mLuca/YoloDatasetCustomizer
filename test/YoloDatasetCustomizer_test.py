@@ -353,13 +353,21 @@ nc: 2
         for key in ("train", "val", "test"):
             self.assertTrue(os.path.isdir(os.path.join(new_dataset_path, new_data[key])), f"{key} -> {new_data[key]}")
 
-        # good_dataset: person_car in train, car in valid, person in test
-        def stems(split: str) -> set[str]:
-            return {os.path.splitext(n)[0].split("_")[0] for n in os.listdir(os.path.join(new_dataset_path, split, "labels"))}
+        # good_dataset: person_car in train, car in valid, person in test. Only good_dataset has
+        # valid/test data, so those files must arrive under their original names in the right split.
+        def split_files(split: str, kind: str) -> set[str]:
+            return set(os.listdir(os.path.join(new_dataset_path, split, kind)))
 
-        self.assertIn("person", stems("test"))
-        self.assertNotIn("car", stems("test"))
-        self.assertNotIn("person", stems("val"))
+        self.assertEqual(split_files("val", "labels"), {"car.txt"})
+        self.assertEqual(split_files("val", "images"), {"car.png"})
+        self.assertEqual(split_files("test", "labels"), {"person.txt"})
+        self.assertEqual(split_files("test", "images"), {"person.jpg"})
+
+        # The copied labels carry the remapped class index of their own class
+        name_to_index = {name: index for index, name in new_data["names"].items()}
+        for split, class_name in (("val", "car"), ("test", "person")):
+            with open(os.path.join(new_dataset_path, split, "labels", f"{class_name}.txt"), encoding="utf-8") as f:
+                self.assertEqual({line.split()[0] for line in f}, {str(name_to_index[class_name])})
 
     def test_image_lookup_ignores_extensionless_entries_and_directories(self):
         with tempfile.TemporaryDirectory(prefix="yolodatasetcustomizer_extless_") as tmp:
