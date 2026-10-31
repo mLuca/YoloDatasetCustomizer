@@ -5,7 +5,7 @@ from .labels import LabelFile
 from .reader import YoloDataFileReader
 from .writer import YoloDataFileWriter
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __author__ = "Luca Mazzon"
 __email__ = "mazzon.luca@gmail.com"
 
