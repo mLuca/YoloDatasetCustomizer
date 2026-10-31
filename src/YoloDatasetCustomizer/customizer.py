@@ -170,6 +170,7 @@ class YoloDatasetCustomizer:
             print(f"Exception was: {e}")
             return False
 
+        print(f"SUCCESS: Dataset '{os.path.basename(new_dataset_path)}' created at: {new_dataset_path}")
         return True
 
     def __copy_label_and_images(
