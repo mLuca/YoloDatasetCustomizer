@@ -166,13 +166,13 @@ class YoloDatasetCustomizer:
                         return False
                     progress.advance(stage_tasks[split_name])
 
-        # Pass the split folder names explicitly so data.yaml points at the folders created above
+        train_split, val_split, test_split = _SPLIT_NAMES
         data_file_writer = YoloDataFileWriter(
             new_dataset_path,
             list(new_class_indices.keys()),
-            train_split="train",
-            val_split="val",
-            test_split="test",
+            train_split=train_split,
+            val_split=val_split,
+            test_split=test_split,
         )
         try:
             data_file_writer.write()
