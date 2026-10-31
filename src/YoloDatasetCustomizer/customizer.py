@@ -3,6 +3,7 @@ import os
 import shutil
 
 import yaml
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskProgressColumn, TextColumn
 
 from .labels import LabelFile
 from .paths import _SPLIT_NAMES, _get_unique_path, _normalize_path
@@ -92,6 +93,10 @@ class YoloDatasetCustomizer:
             os.makedirs(os.path.join(new_dataset_path, split_name, "labels"), exist_ok=True)
             os.makedirs(os.path.join(new_dataset_path, split_name, "images"), exist_ok=True)
 
+        # Plan first, so every stage knows how many files it is going to copy
+        planned_files: dict[str, list[tuple[LabelFile, dict[str, list[str]], dict[str, str]]]] = {
+            split_name: [] for split_name in _SPLIT_NAMES
+        }
         for data_set in self.__data_sets:
             common_class_names = set(data_set.get_class_names()) & class_names
             if not common_class_names:
@@ -118,48 +123,48 @@ class YoloDatasetCustomizer:
                         print(f"WARNING: Path '{missing_path}' does not exist! Skipping it.")
                         continue
 
-                    new_labels_path = os.path.join(new_dataset_path, split_name, "labels")
-                    new_images_path = os.path.join(new_dataset_path, split_name, "images")
-
-                    # Index images by exact stem so 'car.*' can't pick up e.g. 'car.v2.jpg'
+                    # Index images by exact stem so 'car.*' can't pick up e.g. 'car.v2.jpg'.
+                    # Only regular files with an extension count, like the old 'car.*' lookup.
                     images_by_stem: dict[str, list[str]] = {}
                     for image_name in os.listdir(old_images_path):
-                        stem = os.path.splitext(image_name)[0]
-                        images_by_stem.setdefault(stem, []).append(os.path.join(old_images_path, image_name))
+                        stem, ext = os.path.splitext(image_name)
+                        image_path = os.path.join(old_images_path, image_name)
+                        if not ext or not os.path.isfile(image_path):
+                            continue
+                        images_by_stem.setdefault(stem, []).append(image_path)
 
                     for original_label_file_path in glob.glob(os.path.join(old_labels_path, "*.txt")):
                         label_file = LabelFile(original_label_file_path)
-                        new_label_file_path = label_file.copy_by_class_indices(old_to_new_index_match, new_labels_path)
-                        if new_label_file_path:
-                            file_name = os.path.basename(original_label_file_path)
-                            file_name_no_ext = os.path.splitext(file_name)[0]
-                            corresponding_image_files = images_by_stem.get(file_name_no_ext, [])
-                            for img in corresponding_image_files:
-                                try:
-                                    _, ext = os.path.splitext(img)
-                                except Exception:
-                                    print(f"ERROR: Not a valid image, extension missing for: {img}")
-                                    return False
+                        if label_file.get_class_indices() & set(old_to_new_index_match):
+                            planned_files[split_name].append((label_file, images_by_stem, old_to_new_index_match))
 
-                                if not ignore_img_formats and ext.lower() not in self.SUPPORTED_IMAGE_FORMATS:
-                                    print(
-                                        f"ERROR: Image format not supported by yolo: {img}\n"
-                                        f"Supported formats are: {self.SUPPORTED_IMAGE_FORMATS}"
-                                    )
-                                    return False
-
-                                new_image_name, _ = os.path.splitext(os.path.basename(new_label_file_path))
-                                new_image_name = new_image_name + ext
-                                destination = os.path.join(new_images_path, new_image_name)
-                                try:
-                                    shutil.copyfile(img, destination)
-                                except OSError as e:
-                                    print(
-                                        f"ERROR: Image could not be copied:\n"
-                                        f"Source: {img}\nDestination: {destination}\n"
-                                        f"Exception was: {e}"
-                                    )
-                                    return False
+        # One bar per stage (white, filled green), all visible from the start
+        with Progress(
+            TextColumn("{task.description}"),
+            BarColumn(style="white", complete_style="green", finished_style="green"),
+            TaskProgressColumn(),
+            MofNCompleteColumn(),
+        ) as progress:
+            stage_tasks = {
+                split_name: progress.add_task(
+                    f"[{stage}/{len(_SPLIT_NAMES)}] {split_name:<5}", total=len(planned_files[split_name])
+                )
+                for stage, split_name in enumerate(_SPLIT_NAMES, start=1)
+            }
+            for split_name in _SPLIT_NAMES:
+                new_labels_path = os.path.join(new_dataset_path, split_name, "labels")
+                new_images_path = os.path.join(new_dataset_path, split_name, "images")
+                for label_file, images_by_stem, old_to_new_index_match in planned_files[split_name]:
+                    if not self.__copy_label_and_images(
+                        label_file,
+                        images_by_stem,
+                        old_to_new_index_match,
+                        new_labels_path,
+                        new_images_path,
+                        ignore_img_formats,
+                    ):
+                        return False
+                    progress.advance(stage_tasks[split_name])
 
         # Pass the split folder names explicitly so data.yaml points at the folders created above
         data_file_writer = YoloDataFileWriter(
@@ -177,6 +182,44 @@ class YoloDatasetCustomizer:
             return False
 
         print(f"SUCCESS: Dataset '{os.path.basename(new_dataset_path)}' created at: {new_dataset_path}")
+        return True
+
+    def __copy_label_and_images(
+        self,
+        label_file: LabelFile,
+        images_by_stem: dict[str, list[str]],
+        old_to_new_index_match: dict[str, str],
+        new_labels_path: str,
+        new_images_path: str,
+        ignore_img_formats: bool,
+    ) -> bool:
+        """Copy one label file with remapped indices plus its images. Returns False on error."""
+        new_label_file_path = label_file.copy_by_class_indices(old_to_new_index_match, new_labels_path)
+        if not new_label_file_path:
+            return True
+
+        file_name_no_ext = os.path.splitext(os.path.basename(label_file.file_path))[0]
+        for img in images_by_stem.get(file_name_no_ext, []):
+            _, ext = os.path.splitext(img)
+
+            if not ignore_img_formats and ext.lower() not in self.SUPPORTED_IMAGE_FORMATS:
+                print(
+                    f"ERROR: Image format not supported by yolo: {img}\n"
+                    f"Supported formats are: {self.SUPPORTED_IMAGE_FORMATS}"
+                )
+                return False
+
+            new_image_name, _ = os.path.splitext(os.path.basename(new_label_file_path))
+            destination = os.path.join(new_images_path, new_image_name + ext)
+            try:
+                shutil.copyfile(img, destination)
+            except OSError as e:
+                print(
+                    f"ERROR: Image could not be copied:\n"
+                    f"Source: {img}\nDestination: {destination}\n"
+                    f"Exception was: {e}"
+                )
+                return False
         return True
 
     def __generate_new_class_indices(self, class_names: set[str]) -> dict[str, str]:
