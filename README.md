@@ -15,15 +15,21 @@ If a path ends on _data.yaml_ it will take that file into account.
 If a path doesn't end on _/data.yaml_ it will recursevly look for all _data.yaml_ files from that directory downards.
 e.g.
 
-    from YoloDatasetCustomizer import YoloDatasetCustomizer
+```python
+from YoloDatasetCustomizer import YoloDatasetCustomizer
 
-    ydc = YoloDatasetCustomizer(list_to_existing_datasets)
-    ydc.add([one_more_existing_dataset])
+ydc = YoloDatasetCustomizer(list_to_existing_datasets)
+ydc.add_data_sets([one_more_existing_dataset])
 
-    if ydc.create_new_dataset_for_class_names(set_of_wanted_class_names, optional_custom_path, optional_custom_name):
-        print("All good")
-    else:
-        print("Oh no.")
+if ydc.create_new_dataset_for_class_names(
+    class_names=<set_of_wanted_class_names>,
+    dst_path=<optional_custom_path>,
+    data_set_name=<optional_custom_name>,
+):
+    print("All good")
+else:
+    print("Oh no.")
+```
 
 # Run tests
 

@@ -86,6 +86,12 @@ class YoloDatasetCustomizer:
         new_class_indices = self.__generate_new_class_indices(class_names)
         print(f"INFO: New class indices: {new_class_indices}")
 
+        # Always create every split folder so the folder structure matches what data.yaml references,
+        # even when no source dataset contributed images to a split.
+        for split_name in _SPLIT_NAMES:
+            os.makedirs(os.path.join(new_dataset_path, split_name, "labels"), exist_ok=True)
+            os.makedirs(os.path.join(new_dataset_path, split_name, "images"), exist_ok=True)
+
         for data_set in self.__data_sets:
             common_class_names = set(data_set.get_class_names()) & class_names
             if not common_class_names:
@@ -114,16 +120,20 @@ class YoloDatasetCustomizer:
 
                     new_labels_path = os.path.join(new_dataset_path, split_name, "labels")
                     new_images_path = os.path.join(new_dataset_path, split_name, "images")
-                    os.makedirs(new_labels_path, exist_ok=True)
-                    os.makedirs(new_images_path, exist_ok=True)
+
+                    # Index images by exact stem so 'car.*' can't pick up e.g. 'car.v2.jpg'
+                    images_by_stem: dict[str, list[str]] = {}
+                    for image_name in os.listdir(old_images_path):
+                        stem = os.path.splitext(image_name)[0]
+                        images_by_stem.setdefault(stem, []).append(os.path.join(old_images_path, image_name))
 
                     for original_label_file_path in glob.glob(os.path.join(old_labels_path, "*.txt")):
                         label_file = LabelFile(original_label_file_path)
                         new_label_file_path = label_file.copy_by_class_indices(old_to_new_index_match, new_labels_path)
                         if new_label_file_path:
                             file_name = os.path.basename(original_label_file_path)
-                            file_name_no_ext = file_name[: file_name.rfind(".")]
-                            corresponding_image_files = glob.glob(os.path.join(old_images_path, f"{file_name_no_ext}.*"))
+                            file_name_no_ext = os.path.splitext(file_name)[0]
+                            corresponding_image_files = images_by_stem.get(file_name_no_ext, [])
                             for img in corresponding_image_files:
                                 try:
                                     _, ext = os.path.splitext(img)
@@ -151,7 +161,14 @@ class YoloDatasetCustomizer:
                                     )
                                     return False
 
-        data_file_writer = YoloDataFileWriter(new_dataset_path, list(new_class_indices.keys()))
+        # Pass the split folder names explicitly so data.yaml points at the folders created above
+        data_file_writer = YoloDataFileWriter(
+            new_dataset_path,
+            list(new_class_indices.keys()),
+            train_split="train",
+            val_split="val",
+            test_split="test",
+        )
         try:
             data_file_writer.write()
         except Exception as e:

@@ -340,6 +340,27 @@ nc: 2
         new_image_path = os.path.join(new_dataset_path, "train", "images", "person_car.jpg")
         self.assertTrue(os.path.exists(new_image_path))
 
+    def test_merge_keeps_splits_separate_and_yaml_matches_folders(self):
+        customizer = YoloDatasetCustomizer([self.good_dataset_dir, self.reordered_names_dataset_dir])
+        name = "merged_splits_dataset"
+        self.assertTrue(
+            customizer.create_new_dataset_for_class_names({"person", "car"}, dst_path=self.workspace_root, data_set_name=name)
+        )
+        new_dataset_path = os.path.join(self.workspace_root, name)
+        with open(os.path.join(new_dataset_path, "data.yaml"), "r", encoding="utf-8") as f:
+            new_data = yaml.safe_load(f)
+
+        for key in ("train", "val", "test"):
+            self.assertTrue(os.path.isdir(os.path.join(new_dataset_path, new_data[key])), f"{key} -> {new_data[key]}")
+
+        # good_dataset: person_car in train, car in valid, person in test
+        def stems(split: str) -> set[str]:
+            return {os.path.splitext(n)[0].split("_")[0] for n in os.listdir(os.path.join(new_dataset_path, split, "labels"))}
+
+        self.assertIn("person", stems("test"))
+        self.assertNotIn("car", stems("test"))
+        self.assertNotIn("person", stems("val"))
+
     def test_yolo_dataset_customizer_returns_false_for_empty_class_names(self):
         customizer = YoloDatasetCustomizer([self.good_dataset_dir])
         self.assertFalse(customizer.create_new_dataset_for_class_names(set(), dst_path=self.workspace_root, data_set_name="empty_selection"))
