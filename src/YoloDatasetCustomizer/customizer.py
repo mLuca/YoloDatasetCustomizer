@@ -97,6 +97,7 @@ class YoloDatasetCustomizer:
         planned_files: dict[str, list[tuple[LabelFile, dict[str, list[str]], dict[str, str]]]] = {
             split_name: [] for split_name in _SPLIT_NAMES
         }
+        fallback_choice: str | None = None  # Sticky answer: "all" or "none"
         for data_set in self.__data_sets:
             common_class_names = set(data_set.get_class_names()) & class_names
             if not common_class_names:
@@ -120,8 +121,26 @@ class YoloDatasetCustomizer:
                         (path for path in (old_labels_path, old_images_path) if not os.path.exists(path)), None
                     )
                     if missing_path is not None:
-                        print(f"WARNING: Path '{missing_path}' does not exist! Skipping it.")
-                        continue
+                        fallback_images_path = self.__find_fallback_images_path(data_set, split_path)
+                        if fallback_images_path is None:
+                            print(
+                                f"WARNING: Path '{missing_path}' from '{data_set.get_file_path()}' "
+                                f"does not exist! Skipping it."
+                            )
+                            continue
+                        choice = fallback_choice or self.__ask_use_fallback(
+                            data_set.get_file_path(), split_path, fallback_images_path
+                        )
+                        if choice in ("all", "none"):
+                            fallback_choice = choice
+                        if choice == "abort":
+                            print("INFO: Aborted by user.")
+                            return False
+                        if choice in ("no", "none"):
+                            print(f"WARNING: Skipping '{split_path}' of '{data_set.get_file_path()}'.")
+                            continue
+                        old_images_path = fallback_images_path
+                        old_labels_path = self.__generate_label_path_from_img_path(old_images_path)
 
                     # Index images by exact stem so 'car.*' can't pick up e.g. 'car.v2.jpg'.
                     # Only regular files with an extension count, like the old 'car.*' lookup.
@@ -221,6 +240,42 @@ class YoloDatasetCustomizer:
                 )
                 return False
         return True
+
+    def __find_fallback_images_path(self, data_set: YoloDataFileReader, split_path: str) -> str | None:
+        """Return the images path with leading '../' removed (legacy Roboflow style) if it and its labels exist."""
+        stripped = split_path.replace("\\", "/")
+        while stripped.startswith("../"):
+            stripped = stripped[3:]
+        if stripped == split_path.replace("\\", "/"):
+            return None
+        images_path = os.path.join(_normalize_path(data_set.get_file_dir()), stripped)
+        labels_path = self.__generate_label_path_from_img_path(images_path)
+        if os.path.isdir(images_path) and os.path.isdir(labels_path):
+            return os.path.normpath(images_path)
+        return None
+
+    @staticmethod
+    def __ask_use_fallback(yaml_path: str, split_path: str, fallback_path: str) -> str:
+        """Ask the user whether to use the fallback folder. Returns yes/all/no/none/abort."""
+        options = {"1": "yes", "2": "all", "3": "no", "4": "none", "5": "abort"}
+        print(
+            f"'{split_path}' in '{yaml_path}' does not exist, but was found at:\n  {fallback_path}\n"
+            f"Use it? [1] Yes  [2] All  [3] No  [4] None  [5] Abort: ",
+            end="",
+            flush=True,
+        )
+        while True:
+            if os.name == "nt":
+                import msvcrt
+
+                key = msvcrt.getwch()
+                if key == "\x03":
+                    raise KeyboardInterrupt
+            else:
+                key = (input() or " ")[0]
+            if key in options:
+                print(key)
+                return options[key]
 
     def __generate_new_class_indices(self, class_names: set[str]) -> dict[str, str]:
         """Generate a fresh label index mapping for the selected class names."""
