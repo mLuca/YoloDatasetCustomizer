@@ -1,8 +1,11 @@
 import glob
 import os
 import shutil
+import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import yaml
+from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskProgressColumn, TextColumn
 
 from .labels import LabelFile
@@ -46,8 +49,9 @@ class YoloDatasetCustomizer:
         paths_without_file_ending = [
             path for path in data_set_paths if os.path.basename(path).lower() != "data.yaml"
         ]
-        for path in paths_without_file_ending:
-            self.__found_data_file_paths.update(glob.glob(os.path.join(path, "**", "data.yaml"), recursive=True))
+        with Console().status("Searching for data.yaml files..."):
+            for path in paths_without_file_ending:
+                self.__found_data_file_paths.update(glob.glob(os.path.join(path, "**", "data.yaml"), recursive=True))
 
         for path in self.__found_data_file_paths:
             try:
@@ -57,6 +61,23 @@ class YoloDatasetCustomizer:
                 print(f"ERROR: Issue loading YAML file at {path}: {e}")
             except FileNotFoundError:
                 print(f"ERROR: Yaml file does not exist at {path}")
+
+    @staticmethod
+    def __read_label_files(label_paths: list[str], description: str) -> list[LabelFile]:
+        """Parse label files in parallel (I/O bound) while showing a progress bar."""
+        label_files: list[LabelFile] = []
+        with Progress(
+            TextColumn("{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(description, total=len(label_paths))
+            with ThreadPoolExecutor(max_workers=16) as pool:
+                for label_file in pool.map(LabelFile, label_paths):
+                    label_files.append(label_file)
+                    progress.advance(task)
+        return label_files
 
     def get_found_data_file_paths(self) -> set[str]:
         """Return all discovered YOLO dataset YAML file paths."""
@@ -97,6 +118,7 @@ class YoloDatasetCustomizer:
         planned_files: dict[str, list[tuple[LabelFile, dict[str, list[str]], dict[str, str]]]] = {
             split_name: [] for split_name in _SPLIT_NAMES
         }
+        fallback_choice: str | None = None  # Sticky answer: "all" or "none"
         for data_set in self.__data_sets:
             common_class_names = set(data_set.get_class_names()) & class_names
             if not common_class_names:
@@ -120,22 +142,53 @@ class YoloDatasetCustomizer:
                         (path for path in (old_labels_path, old_images_path) if not os.path.exists(path)), None
                     )
                     if missing_path is not None:
-                        print(f"WARNING: Path '{missing_path}' does not exist! Skipping it.")
-                        continue
+                        fallback_images_path = self.__find_fallback_images_path(data_set, split_path)
+                        if fallback_images_path is None:
+                            print(
+                                f"WARNING: Path '{missing_path}' from '{data_set.get_file_path()}' "
+                                f"does not exist! Skipping it."
+                            )
+                            continue
+                        try:
+                            choice = fallback_choice or self.__ask_use_fallback(
+                                data_set.get_file_path(), split_path, fallback_images_path
+                            )
+                        except EOFError:
+                            print(
+                                "ERROR: Cannot prompt for Roboflow fallback because standard input is closed. "
+                                "Dataset creation aborted."
+                            )
+                            return False
+                        if choice in ("all", "none"):
+                            fallback_choice = choice
+                        if choice == "abort":
+                            print("INFO: Aborted by user.")
+                            return False
+                        if choice in ("no", "none"):
+                            print(f"WARNING: Skipping '{split_path}' of '{data_set.get_file_path()}'.")
+                            continue
+                        old_images_path = fallback_images_path
+                        old_labels_path = self.__generate_label_path_from_img_path(old_images_path)
 
                     # Index images by exact stem so 'car.*' can't pick up e.g. 'car.v2.jpg'.
                     # Only regular files with an extension count, like the old 'car.*' lookup.
                     images_by_stem: dict[str, list[str]] = {}
-                    for image_name in os.listdir(old_images_path):
-                        stem, ext = os.path.splitext(image_name)
-                        image_path = os.path.join(old_images_path, image_name)
-                        if not ext or not os.path.isfile(image_path):
-                            continue
-                        images_by_stem.setdefault(stem, []).append(image_path)
+                    with os.scandir(old_images_path) as entries:
+                        for entry in entries:
+                            stem, ext = os.path.splitext(entry.name)
+                            if ext and entry.is_file():
+                                images_by_stem.setdefault(stem, []).append(entry.path)
 
-                    for original_label_file_path in glob.glob(os.path.join(old_labels_path, "*.txt")):
-                        label_file = LabelFile(original_label_file_path)
-                        if label_file.get_class_indices() & set(old_to_new_index_match):
+                    with os.scandir(old_labels_path) as entries:
+                        label_paths = [
+                            e.path for e in entries
+                            if os.path.normcase(e.name).endswith(".txt") and e.is_file()
+                        ]
+                    wanted_indices = set(old_to_new_index_match)
+                    for label_file in self.__read_label_files(
+                        label_paths, f"Scanning {split_name:<5} labels of {data_set.get_file_path()}"
+                    ):
+                        if label_file.get_class_indices() & wanted_indices:
                             planned_files[split_name].append((label_file, images_by_stem, old_to_new_index_match))
 
         # One bar per stage (white, filled green), all visible from the start
@@ -221,6 +274,42 @@ class YoloDatasetCustomizer:
                 )
                 return False
         return True
+
+    def __find_fallback_images_path(self, data_set: YoloDataFileReader, split_path: str) -> str | None:
+        """Return the images path with leading '../' removed (legacy Roboflow style) if it and its labels exist."""
+        stripped = split_path.replace("\\", "/")
+        while stripped.startswith("../"):
+            stripped = stripped[3:]
+        if stripped == split_path.replace("\\", "/"):
+            return None
+        images_path = os.path.join(_normalize_path(data_set.get_file_dir()), stripped)
+        labels_path = self.__generate_label_path_from_img_path(images_path)
+        if os.path.isdir(images_path) and os.path.isdir(labels_path):
+            return os.path.normpath(images_path)
+        return None
+
+    @staticmethod
+    def __ask_use_fallback(yaml_path: str, split_path: str, fallback_path: str) -> str:
+        """Ask the user whether to use the fallback folder. Returns yes/all/no/none/abort."""
+        options = {"1": "yes", "2": "all", "3": "no", "4": "none", "5": "abort"}
+        print(
+            f"'{split_path}' in '{yaml_path}' does not exist, but was found at:\n  {fallback_path}\n"
+            f"Use it? [1] Yes  [2] All  [3] No  [4] None  [5] Abort: ",
+            end="",
+            flush=True,
+        )
+        while True:
+            if sys.platform == "win32":
+                import msvcrt
+
+                key = msvcrt.getwch()
+                if key == "\x03":
+                    raise KeyboardInterrupt
+            else:
+                key = (input() or " ")[0]
+            if key in options:
+                print(key)
+                return options[key]
 
     def __generate_new_class_indices(self, class_names: set[str]) -> dict[str, str]:
         """Generate a fresh label index mapping for the selected class names."""
