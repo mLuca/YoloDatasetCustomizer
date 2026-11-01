@@ -1,6 +1,7 @@
 import glob
 import os
 import shutil
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
 import yaml
@@ -291,7 +292,7 @@ class YoloDatasetCustomizer:
             flush=True,
         )
         while True:
-            if os.name == "nt":
+            if sys.platform == "win32":
                 import msvcrt
 
                 key = msvcrt.getwch()
