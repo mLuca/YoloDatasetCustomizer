@@ -3,6 +3,8 @@ import shutil
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from unittest.mock import patch
 
 import yaml
@@ -315,6 +317,29 @@ nc: 2
                 {"person", "car"}, dst_path=self.workspace_root, data_set_name="copy_failure_dataset"
             )
         self.assertFalse(result)
+
+    def test_create_new_dataset_reports_closed_stdin_for_roboflow_fallback(self):
+        with tempfile.TemporaryDirectory(prefix="yolodatasetcustomizer_roboflow_") as tmp:
+            dataset_dir = os.path.join(tmp, "dataset")
+            for split in ("train", "valid", "test"):
+                for kind in ("images", "labels"):
+                    os.makedirs(os.path.join(dataset_dir, split, kind), exist_ok=True)
+
+            self._write_text_file(
+                os.path.join(dataset_dir, "data.yaml"),
+                "train: ../train/images\nval: valid/images\ntest: test/images\nnames: [person]\nnc: 1\n",
+            )
+            customizer = YoloDatasetCustomizer([dataset_dir])
+            output = StringIO()
+            with patch("builtins.input", side_effect=EOFError), redirect_stdout(output):
+                result = customizer.create_new_dataset_for_class_names(
+                    {"person"}, dst_path=tmp, data_set_name="output"
+                )
+
+        self.assertFalse(result)
+        self.assertIn("standard input is closed", output.getvalue())
+        self.assertIn("Dataset creation aborted.", output.getvalue())
+        self.assertNotIn("Aborted by user.", output.getvalue())
 
     def test_yolo_dataset_customizer_creates_filtered_dataset(self):
         customizer = YoloDatasetCustomizer([self.good_dataset_dir])

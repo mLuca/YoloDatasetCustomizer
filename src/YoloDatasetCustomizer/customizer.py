@@ -149,9 +149,16 @@ class YoloDatasetCustomizer:
                                 f"does not exist! Skipping it."
                             )
                             continue
-                        choice = fallback_choice or self.__ask_use_fallback(
-                            data_set.get_file_path(), split_path, fallback_images_path
-                        )
+                        try:
+                            choice = fallback_choice or self.__ask_use_fallback(
+                                data_set.get_file_path(), split_path, fallback_images_path
+                            )
+                        except EOFError:
+                            print(
+                                "ERROR: Cannot prompt for Roboflow fallback because standard input is closed. "
+                                "Dataset creation aborted."
+                            )
+                            return False
                         if choice in ("all", "none"):
                             fallback_choice = choice
                         if choice == "abort":
