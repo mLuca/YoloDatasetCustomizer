@@ -172,7 +172,10 @@ class YoloDatasetCustomizer:
                                 images_by_stem.setdefault(stem, []).append(entry.path)
 
                     with os.scandir(old_labels_path) as entries:
-                        label_paths = [e.path for e in entries if e.name.endswith(".txt") and e.is_file()]
+                        label_paths = [
+                            e.path for e in entries
+                            if os.path.normcase(e.name).endswith(".txt") and e.is_file()
+                        ]
                     wanted_indices = set(old_to_new_index_match)
                     for label_file in self.__read_label_files(
                         label_paths, f"Scanning {split_name:<5} labels of {data_set.get_file_path()}"
