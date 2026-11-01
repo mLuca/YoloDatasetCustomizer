@@ -1,8 +1,10 @@
 import glob
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 
 import yaml
+from rich.console import Console
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, TaskProgressColumn, TextColumn
 
 from .labels import LabelFile
@@ -46,8 +48,9 @@ class YoloDatasetCustomizer:
         paths_without_file_ending = [
             path for path in data_set_paths if os.path.basename(path).lower() != "data.yaml"
         ]
-        for path in paths_without_file_ending:
-            self.__found_data_file_paths.update(glob.glob(os.path.join(path, "**", "data.yaml"), recursive=True))
+        with Console().status("Searching for data.yaml files..."):
+            for path in paths_without_file_ending:
+                self.__found_data_file_paths.update(glob.glob(os.path.join(path, "**", "data.yaml"), recursive=True))
 
         for path in self.__found_data_file_paths:
             try:
@@ -57,6 +60,23 @@ class YoloDatasetCustomizer:
                 print(f"ERROR: Issue loading YAML file at {path}: {e}")
             except FileNotFoundError:
                 print(f"ERROR: Yaml file does not exist at {path}")
+
+    @staticmethod
+    def __read_label_files(label_paths: list[str], description: str) -> list[LabelFile]:
+        """Parse label files in parallel (I/O bound) while showing a progress bar."""
+        label_files: list[LabelFile] = []
+        with Progress(
+            TextColumn("{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(description, total=len(label_paths))
+            with ThreadPoolExecutor(max_workers=16) as pool:
+                for label_file in pool.map(LabelFile, label_paths):
+                    label_files.append(label_file)
+                    progress.advance(task)
+        return label_files
 
     def get_found_data_file_paths(self) -> set[str]:
         """Return all discovered YOLO dataset YAML file paths."""
@@ -145,16 +165,19 @@ class YoloDatasetCustomizer:
                     # Index images by exact stem so 'car.*' can't pick up e.g. 'car.v2.jpg'.
                     # Only regular files with an extension count, like the old 'car.*' lookup.
                     images_by_stem: dict[str, list[str]] = {}
-                    for image_name in os.listdir(old_images_path):
-                        stem, ext = os.path.splitext(image_name)
-                        image_path = os.path.join(old_images_path, image_name)
-                        if not ext or not os.path.isfile(image_path):
-                            continue
-                        images_by_stem.setdefault(stem, []).append(image_path)
+                    with os.scandir(old_images_path) as entries:
+                        for entry in entries:
+                            stem, ext = os.path.splitext(entry.name)
+                            if ext and entry.is_file():
+                                images_by_stem.setdefault(stem, []).append(entry.path)
 
-                    for original_label_file_path in glob.glob(os.path.join(old_labels_path, "*.txt")):
-                        label_file = LabelFile(original_label_file_path)
-                        if label_file.get_class_indices() & set(old_to_new_index_match):
+                    with os.scandir(old_labels_path) as entries:
+                        label_paths = [e.path for e in entries if e.name.endswith(".txt") and e.is_file()]
+                    wanted_indices = set(old_to_new_index_match)
+                    for label_file in self.__read_label_files(
+                        label_paths, f"Scanning {split_name:<5} labels of {data_set.get_file_path()}"
+                    ):
+                        if label_file.get_class_indices() & wanted_indices:
                             planned_files[split_name].append((label_file, images_by_stem, old_to_new_index_match))
 
         # One bar per stage (white, filled green), all visible from the start
