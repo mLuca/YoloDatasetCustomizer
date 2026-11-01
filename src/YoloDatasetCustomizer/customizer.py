@@ -299,7 +299,8 @@ class YoloDatasetCustomizer:
             flush=True,
         )
         while True:
-            if sys.platform == "win32":
+            # getwch() bypasses stdin, so only use it for an interactive console
+            if sys.platform == "win32" and sys.stdin is not None and sys.stdin.isatty():
                 import msvcrt
 
                 key = msvcrt.getwch()
